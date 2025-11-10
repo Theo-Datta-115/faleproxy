@@ -64,11 +64,11 @@ app.post('/fetch', async (req, res) => {
     
     // Process title separately
     const title = $('title').text();
-    if (/\bYale\b/i.test(title)) {
+    if (title) {
       const newTitle = title
+        .replace(/\bYALE\b/g, 'FALE')
         .replace(/\bYale\b/g, 'Fale')
-        .replace(/\byale\b/g, 'fale')
-        .replace(/\bYALE\b/g, 'FALE');
+        .replace(/\byale\b/g, 'fale');
       $('title').text(newTitle);
     }
     
