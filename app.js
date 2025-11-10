@@ -51,17 +51,24 @@ app.post('/fetch', async (req, res) => {
     $('body *').contents().filter(function() {
       return this.nodeType === 3; // Text nodes only
     }).each(function() {
-      // Replace text content but not in URLs or attributes
       const text = $(this).text();
-      const newText = text.replace(/Yale/g, 'Fale').replace(/yale/g, 'fale').replace(/YALE/g, 'FALE');
+      // Use word boundaries to only replace standalone words
+      const newText = text
+        .replace(/\bYALE\b/g, 'FALE')
+        .replace(/\bYale\b/g, 'Fale')
+        .replace(/\byale\b/g, 'fale');
       if (text !== newText) {
         $(this).replaceWith(newText);
       }
     });
     
     // Process title separately
-    const title = $('title').text().replace(/Yale/g, 'Fale').replace(/yale/g, 'fale').replace(/YALE/g, 'FALE');
-    $('title').text(title);
+    const title = $('title').text();
+    const newTitle = title
+      .replace(/\bYALE\b/g, 'FALE')
+      .replace(/\bYale\b/g, 'Fale')
+      .replace(/\byale\b/g, 'fale');
+    $('title').text(newTitle);
     
     return res.json({ 
       success: true, 
