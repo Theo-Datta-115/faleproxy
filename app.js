@@ -11,13 +11,6 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// CHANGE: helper to preserve the casing of the matched word
-function yaleToFalePreservingCase(match) {
-  if (match === match.toUpperCase()) return 'FALE';       // YALE -> FALE
-  if (match[0] === match[0].toUpperCase()) return 'Fale'; // Yale -> Fale
-  return 'fale';                                          // yale -> fale
-}
-
 // Route to serve the main page
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -33,48 +26,62 @@ app.post('/fetch', async (req, res) => {
     }
 
     // Fetch the content from the provided URL
-    // CHANGE: keep axios call simple; avoid returning/logging complex objects anywhere
     const response = await axios.get(url);
     const html = response.data;
 
     // Use cheerio to parse HTML and selectively replace text content, not URLs
     const $ = cheerio.load(html);
     
-    // CHANGE: Replace in text nodes only, skip script/style/noscript
-    $('body *:not(script):not(style):not(noscript)')
-      .contents()
-      .filter(function() {
-        return this.nodeType === 3; // Text nodes only
-      })
-      .each(function() {
-        const text = $(this).text();
-        // CHANGE: single regex + callback preserves original casing
-        const newText = text.replace(/\bYALE\b/gi, yaleToFalePreservingCase);
-        if (text !== newText) {
-          $(this).replaceWith(newText);
-        }
-      });
+    // // Function to replace text but skip URLs and attributes
+    // function replaceYaleWithFale(i, el) {
+    //   if ($(el).children().length === 0 || $(el).text().trim() !== '') {
+    //     // Get the HTML content of the element
+    //     let content = $(el).html();
+        
+    //     // Only process if it's a text node
+    //     if (content && $(el).children().length === 0) {
+    //       // Replace Yale with Fale in text content only
+    //       content = content.replace(/Yale/g, 'Fale').replace(/yale/g, 'fale').replace(/YALE/g, 'FALE');
+    //       $(el).html(content);
+    //     }
+    //   }
+    // }
     
-    // CHANGE: Process title with casing-preserving replacement
-    const currentTitle = $('title').text();
-    if (currentTitle) {
-      const newTitle = currentTitle.replace(/\bYALE\b/gi, yaleToFalePreservingCase);
+    // Process text nodes in the body
+    $('body *').contents().filter(function() {
+      return this.nodeType === 3; // Text nodes only
+    }).each(function() {
+      const text = $(this).text();
+      // Use word boundaries to only replace standalone words
+      const newText = text
+        .replace(/\bYALE\b/g, 'FALE')
+        .replace(/\bYale\b/g, 'Fale')
+        .replace(/\byale\b/g, 'fale');
+      if (text !== newText) {
+        $(this).replaceWith(newText);
+      }
+    });
+    
+    // Process title separately
+    const title = $('title').text();
+    if (title) {
+      const newTitle = title
+        .replace(/\bYALE\b/g, 'FALE')
+        .replace(/\bYale\b/g, 'Fale')
+        .replace(/\byale\b/g, 'fale');
       $('title').text(newTitle);
     }
     
     return res.json({ 
       success: true, 
       content: $.html(),
-      // CHANGE: return the (possibly modified) title; null if no title
-      title: $('title').text() || null,
+      title: title,
       originalUrl: url
     });
   } catch (error) {
-    // CHANGE: log only primitives to avoid circular serialization in Jest workers
-    const msg = (error && error.message) ? error.message : String(error);
-    console.error('Error fetching URL:', msg);
+    console.error('Error fetching URL:', error.message);
     return res.status(500).json({ 
-      error: `Failed to fetch content: ${msg}` 
+      error: `Failed to fetch content: ${error.message}` 
     });
   }
 });
