@@ -64,11 +64,13 @@ app.post('/fetch', async (req, res) => {
     
     // Process title separately
     const title = $('title').text();
-    const newTitle = title
-      .replace(/\bYALE\b/g, 'FALE')
-      .replace(/\bYale\b/g, 'Fale')
-      .replace(/\byale\b/g, 'fale');
-    $('title').text(newTitle);
+    if (/\bYale\b/i.test(title)) {
+      const newTitle = title
+        .replace(/\bYale\b/g, 'Fale')
+        .replace(/\byale\b/g, 'fale')
+        .replace(/\bYALE\b/g, 'FALE');
+      $('title').text(newTitle);
+    }
     
     return res.json({ 
       success: true, 
@@ -85,6 +87,9 @@ app.post('/fetch', async (req, res) => {
 });
 
 // Start the server
-app.listen(PORT, () => {
-  console.log(`Faleproxy server running at http://localhost:${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Faleproxy server running at http://localhost:${PORT}`);
+  });
+}
+module.exports = app;
