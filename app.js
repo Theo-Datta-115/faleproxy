@@ -16,11 +16,18 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// Helper: casing-preserving replacement for the standalone word "Yale"
+function yaleToFalePreservingCase(match) {
+  // match is the exact substring that matched the regex (YALE|Yale|yale)
+  if (match === match.toUpperCase()) return 'FALE';   // YALE -> FALE
+  if (match[0] === match[0].toUpperCase()) return 'Fale'; // Yale -> Fale
+  return 'fale'; // yale -> fale
+}
+
 // API endpoint to fetch and modify content
 app.post('/fetch', async (req, res) => {
   try {
     const { url } = req.body;
-    
     if (!url) {
       return res.status(400).json({ error: 'URL is required' });
     }
@@ -29,59 +36,42 @@ app.post('/fetch', async (req, res) => {
     const response = await axios.get(url);
     const html = response.data;
 
-    // Use cheerio to parse HTML and selectively replace text content, not URLs
     const $ = cheerio.load(html);
-    
-    // // Function to replace text but skip URLs and attributes
-    // function replaceYaleWithFale(i, el) {
-    //   if ($(el).children().length === 0 || $(el).text().trim() !== '') {
-    //     // Get the HTML content of the element
-    //     let content = $(el).html();
-        
-    //     // Only process if it's a text node
-    //     if (content && $(el).children().length === 0) {
-    //       // Replace Yale with Fale in text content only
-    //       content = content.replace(/Yale/g, 'Fale').replace(/yale/g, 'fale').replace(/YALE/g, 'FALE');
-    //       $(el).html(content);
-    //     }
-    //   }
-    // }
-    
-    // Process text nodes in the body
-    $('body *').contents().filter(function() {
-      return this.nodeType === 3; // Text nodes only
-    }).each(function() {
-      const text = $(this).text();
-      // Use word boundaries to only replace standalone words
-      const newText = text
-        .replace(/\bYALE\b/g, 'FALE')
-        .replace(/\bYale\b/g, 'Fale')
-        .replace(/\byale\b/g, 'fale');
-      if (text !== newText) {
-        $(this).replaceWith(newText);
-      }
-    });
-    
-    // Process title separately
-    const title = $('title').text();
-    if (title) {
-      const newTitle = title
-        .replace(/\bYALE\b/g, 'FALE')
-        .replace(/\bYale\b/g, 'Fale')
-        .replace(/\byale\b/g, 'fale');
+
+    // Replace in <title> (if present)
+    const oldTitle = $('title').text();
+    if (oldTitle) {
+      const newTitle = oldTitle.replace(/\bYALE\b/gi, yaleToFalePreservingCase);
       $('title').text(newTitle);
     }
-    
-    return res.json({ 
-      success: true, 
+
+    // Replace in BODY text nodes, skipping script/style/noscript
+    $('body *:not(script):not(style):not(noscript)')
+      .contents()
+      .filter(function () {
+        return this.nodeType === 3; // text nodes
+      })
+      .each(function () {
+        const text = $(this).text();
+        const newText = text.replace(/\bYALE\b/gi, yaleToFalePreservingCase);
+        if (text !== newText) {
+          $(this).replaceWith(newText);
+        }
+      });
+
+    return res.json({
+      success: true,
       content: $.html(),
-      title: title,
-      originalUrl: url
+      // return the modified title for convenience/clarity in tests
+      title: $('title').text() || null,
+      originalUrl: url,
     });
   } catch (error) {
-    console.error('Error fetching URL:', error.message);
-    return res.status(500).json({ 
-      error: `Failed to fetch content: ${error.message}` 
+    // Keep logs primitive to avoid any circular JSON issues
+    const msg = error && error.message ? error.message : String(error);
+    console.error('Error fetching URL:', msg);
+    return res.status(500).json({
+      error: `Failed to fetch content: ${msg}`,
     });
   }
 });
@@ -92,4 +82,5 @@ if (require.main === module) {
     console.log(`Faleproxy server running at http://localhost:${PORT}`);
   });
 }
+
 module.exports = app;
