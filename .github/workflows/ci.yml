@@ -2,9 +2,9 @@ name: Faleproxy CI
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, fix_tests]
   pull_request:
-    branches: [ main, master ]
+    branches: [ main, master, fix_tests]
 
 jobs:
   test:
