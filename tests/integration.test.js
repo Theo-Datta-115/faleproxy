@@ -19,7 +19,7 @@ describe('Integration Tests', () => {
     
     // Create a temporary test app file
     await execAsync('cp app.js tests/app.test.js');
-    await execAsync(`sed -i '' 's/const PORT = 3001/const PORT = ${TEST_PORT}/' tests/app.test.js`);
+    await execAsync(`sed -i.bak "s/const PORT = 3001/const PORT = ${TEST_PORT}/" tests/app.test.js && rm tests/app.test.js.bak`);
     
     // Start the test server
     server = require('child_process').spawn('node', ['tests/app.test.js'], {
