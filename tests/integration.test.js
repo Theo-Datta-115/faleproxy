@@ -18,11 +18,11 @@ describe('Integration Tests', () => {
     nock.enableNetConnect('127.0.0.1');
     
     // Create a temporary test app file
-    await execAsync('cp app.js app.test.js');
+    await execAsync('cp app.js tests/app.test.js');
     await execAsync(`sed -i '' 's/const PORT = 3001/const PORT = ${TEST_PORT}/' tests/app.test.js`);
     
     // Start the test server
-    server = require('child_process').spawn('node', ['app.test.js'], {
+    server = require('child_process').spawn('node', ['tests/app.test.js'], {
       detached: true,
       stdio: 'ignore'
     });
@@ -36,7 +36,7 @@ describe('Integration Tests', () => {
     if (server && server.pid) {
       process.kill(-server.pid);
     }
-    await execAsync('rm app.test.js');
+    await execAsync('rm tests/app.test.js');
     nock.cleanAll();
     nock.enableNetConnect();
   });
