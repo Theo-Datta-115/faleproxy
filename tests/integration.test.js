@@ -12,6 +12,7 @@ let server;
 // ✅ FIX: only mock axios.get, not the whole module
 const axios = require('axios');
 jest.spyOn(axios, 'get').mockImplementation(() => Promise.resolve({ data: sampleHtmlWithYale }));
+jest.spyOn(console, 'error').mockImplementation(() => {});
 
 afterEach(() => {
   jest.clearAllMocks();
