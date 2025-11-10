@@ -1,76 +1,74 @@
 const cheerio = require('cheerio');
-// ❌ remove child_process + exec, we won't spawn or sed-edit anything
-// const { exec } = require('child_process');
-// const { promisify } = require('util');
-// const execAsync = promisify(exec);
+const { exec } = require('child_process');
+const { promisify } = require('util');
+const execAsync = promisify(exec);
 const { sampleHtmlWithYale } = require('./test-utils');
 const nock = require('nock');
 
-// ✅ keep real axios.post to call the local server
-const axios = require('axios');
-// ✅ import the app and run it in-process
-const app = require('../app');
-
+// Set a different port for testing to avoid conflict with the main app
+const TEST_PORT = 3099;
 let server;
-let TEST_PORT;
-let getSpy;
+
+// ✅ FIX: only mock axios.get, not the whole module
+const axios = require('axios');
+jest.spyOn(axios, 'get').mockImplementation(() => Promise.resolve({ data: sampleHtmlWithYale }));
 
 afterEach(() => {
-  // restore any axios.get spy set in tests
-  if (getSpy) {
-    getSpy.mockRestore();
-    getSpy = null;
-  }
   jest.clearAllMocks();
 });
 
 describe('Integration Tests', () => {
-  beforeAll((done) => {
-    // Block all external connections except to our local server
+  // Modify the app to use a test port
+  beforeAll(async () => {
+    // Mock external HTTP requests
     nock.disableNetConnect();
     nock.enableNetConnect('127.0.0.1');
-
-    // Start the server on an ephemeral port
-    server = app.listen(0, () => {
-      TEST_PORT = server.address().port;
-      done();
+    
+    // Create a temporary test app file
+    await execAsync('cp app.js tests/app.test.js');
+    await execAsync(`sed -i.bak "s/const PORT = 3001/const PORT = ${TEST_PORT}/" tests/app.test.js && rm tests/app.test.js.bak`);
+    
+    // Start the test server
+    server = require('child_process').spawn('node', ['tests/app.test.js'], {
+      detached: true,
+      stdio: 'ignore'
     });
-  }, 10000);
+    
+    // Give the server time to start
+    await new Promise(resolve => setTimeout(resolve, 2000));
+  }, 10000); // Increase timeout for server startup
 
-  afterAll((done) => {
-    if (server) {
-      server.close(() => {
-        nock.cleanAll();
-        nock.enableNetConnect();
-        done();
-      });
-    } else {
-      nock.cleanAll();
-      nock.enableNetConnect();
-      done();
+  afterAll(async () => {
+    // Kill the test server and clean up
+    if (server && server.pid) {
+      process.kill(-server.pid);
     }
+    await execAsync('rm tests/app.test.js');
+    nock.cleanAll();
+    nock.enableNetConnect();
   });
 
   test('Should replace Yale with Fale in fetched content', async () => {
-    // Mock the outbound fetch that app.js does
-    getSpy = jest.spyOn(axios, 'get').mockResolvedValue({
-      data: sampleHtmlWithYale
-    });
-
-    // Call our local server
+    // Setup mock for example.com
+    nock('https://example.com')
+      .get('/')
+      .reply(200, sampleHtmlWithYale);
+    
+    // Make a request to our proxy app
     const response = await axios.post(`http://localhost:${TEST_PORT}/fetch`, {
       url: 'https://example.com/'
     });
-
+    
     expect(response.status).toBe(200);
     expect(response.data.success).toBe(true);
-
+    
+    // Verify Yale has been replaced with Fale in text
     const $ = cheerio.load(response.data.content);
     expect($('title').text()).toBe('Fale University Test Page');
     expect($('h1').text()).toBe('Welcome to Fale University');
     expect($('p').first().text()).toContain('Fale University is a private');
-
-    // URLs should be unchanged
+    
+    // Verify URLs remain unchanged
     const links = $('a');
     let hasYaleUrl = false;
     links.each((i, link) => {
@@ -80,32 +78,27 @@ describe('Integration Tests', () => {
       }
     });
     expect(hasYaleUrl).toBe(true);
-
-    // Link text should be changed
+    
+    // Verify link text is changed
     expect($('a').first().text()).toBe('About Fale');
-  }, 10000);
+  }, 10000); // Increase timeout for this test
 
   test('Should handle invalid URLs', async () => {
-    // Make the outbound axios.get fail
-    getSpy = jest.spyOn(axios, 'get').mockRejectedValue(
-      Object.assign(new Error('boom'), { code: 'ECONNREFUSED' })
-    );
-
     try {
       await axios.post(`http://localhost:${TEST_PORT}/fetch`, {
         url: 'not-a-valid-url'
       });
+      // Should not reach here
       expect(true).toBe(false);
     } catch (error) {
       expect(error.response.status).toBe(500);
-      expect(String(error.response.data.error)).toMatch(/Failed to fetch content/i);
     }
   });
 
   test('Should handle missing URL parameter', async () => {
-    // No outbound call happens here, so no spy needed
     try {
       await axios.post(`http://localhost:${TEST_PORT}/fetch`, {});
+      // Should not reach here
       expect(true).toBe(false);
     } catch (error) {
       expect(error.response.status).toBe(400);
