@@ -10,6 +10,14 @@ const nock = require('nock');
 const TEST_PORT = 3099;
 let server;
 
+// ⬇️ Add this at the very top
+jest.mock('axios', () => ({ get: jest.fn() }));
+const axios = require('axios');
+
+afterEach(() => {
+  jest.clearAllMocks();
+});
+
 describe('Integration Tests', () => {
   // Modify the app to use a test port
   beforeAll(async () => {
