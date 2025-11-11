@@ -9,7 +9,7 @@
     "vercel-build": "echo 'Building for Vercel deployment'",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:ci": "jest --ci --coverage --runInBand"
+    "test:ci": "jest --ci --coverage --runInBand --collectCoverageFrom='**/*.js' --collectCoverageFrom='!public/**' --collectCoverageFrom='!tests/**' --collectCoverageFrom='!**/jest.config.js'"
   },
   "engines": {
     "node": ">=18.x"
