@@ -23,7 +23,8 @@ describe('Integration Tests', () => {
   beforeAll(async () => {
     // Mock external HTTP requests
     nock.disableNetConnect();
-    nock.enableNetConnect('127.0.0.1');
+    // nock.enableNetConnect('127.0.0.1');
+    nock.enableNetConnect(/^(localhost|127\.0\.0\.1|\[::1\]|::1)(:\d+)?$/);
     
     // Create a temporary test app file
     await execAsync('cp app.js tests/app.test.js');
